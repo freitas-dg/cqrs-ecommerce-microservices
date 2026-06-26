@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecommerce_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-user_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pg_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-user_pass_2026}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pg_user} -d ${POSTGRES_DB:-user_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce_network
+
+  mysql:
+    image: mysql:8.0
+    container_name: ecommerce_mysql
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-order_db}
+      MYSQL_USER: ${MYSQL_USER:-my_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-my_order_2026}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_pass_2026}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce_network
+
+  redis_user:
+    image: redis:7-alpine
+    container_name: ecommerce_redis_user
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_user_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ecommerce_network
+
+  redis_order:
+    image: redis:7-alpine
+    container_name: ecommerce_redis_order
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_order_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ecommerce_network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: ecommerce_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ecommerce_network
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: ecommerce_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ecommercemq}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-ecommerce_mq_2026}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ecommerce_network
+
+  user-api:
+    build:
+      context: ./user-api
+      dockerfile: Dockerfile
+    container_name: pg_user_api
+    ports:
+      - "${USER_API_PORT:-8000}:8000"
+    volumes:
+      - ./user-api:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-pg_user}:${POSTGRES_PASSWORD:-user_pass_2026}@postgres:5432/${POSTGRES_DB:-user_db}
+      - DATABASE_URL_SYNC=postgresql+psycopg2://${POSTGRES_USER:-pg_user}:${POSTGRES_PASSWORD:-user_pass_2026}@postgres:5432/${POSTGRES_DB:-user_db}
+      - REDIS_URL=redis://redis_user:6379/0
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis_user:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    restart: on-failure
+
+  order-api:
+    build:
+      context: ./order-api
+      dockerfile: Dockerfile
+    container_name: my_user_api
+    ports:
+      - "${ORDER_API_PORT:-8001}:8001"
+    volumes:
+      - ./order-api:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-my_user}:${MYSQL_PASSWORD:-my_order_2026}@mysql:3306/${MYSQL_DATABASE:-order_db}
+      - REDIS_URL=redis://redis_order:6379/0
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
+      - USER_API_URL=http://user-api:8000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis_order:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      user-api:
+        condition: service_started
+    networks:
+      - ecommerce_network
+    restart: on-failure
+
+volumes:
+  postgres_data:
+  mysql_data:
+  redis_user_data:
+  redis_order_data:
+  es_data:
+  rabbitmq_data:
+
+networks:
+  ecommerce_network:
+    driver: bridge
