@@ -4,7 +4,7 @@ Um ecossistema de microsserviços para e-commerce robusto e escalável construí
 
 O projeto consiste em duas APIs independentes que se comunicam através de chamadas HTTP (com Circuit Breaker e Retries) e eventos assíncronos (Message Broker), garantindo alta disponibilidade e consistência eventual.
 
-## A História por trás do Projeto (Motivação)
+## Motivação
 
 Alguns anos atrás, participei de um processo seletivo para uma vaga de desenvolvedor cujo desafio técnico exigia a construção de uma arquitetura de microsserviços. Naquela época, por ainda não possuir a maturidade técnica necessária, não consegui concluir o teste e acabei não passando na vaga. 
 
