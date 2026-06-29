@@ -27,8 +27,12 @@ def mock_publisher():
     return MagicMock()
 
 @pytest.fixture
-def use_cases(mock_repo, mock_cache, mock_user_service, mock_publisher):
-    return OrderUseCases(repository=mock_repo, cache=mock_cache, user_service=mock_user_service, event_publisher=mock_publisher)
+def mock_search():
+    return MagicMock()
+
+@pytest.fixture
+def use_cases(mock_repo, mock_cache, mock_user_service, mock_publisher, mock_search):
+    return OrderUseCases(repository=mock_repo, cache=mock_cache, user_service=mock_user_service, event_publisher=mock_publisher, search_adapter=mock_search)
 
 @pytest.fixture
 def sample_order():
