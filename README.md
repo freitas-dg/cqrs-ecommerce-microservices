@@ -59,8 +59,6 @@ make setup
 ```
 
 3. Acesse as APIs:
-- **User API (Swagger)**: http://localhost:8000/docs
-- **Order API (Swagger)**: http://localhost:8001/api/docs
 - **RabbitMQ (Painel Admin)**: http://localhost:15672 (user: `ecommercemq`, pass: `ecommerce_mq_2026`)
 
 
