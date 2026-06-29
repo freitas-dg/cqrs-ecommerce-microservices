@@ -39,7 +39,7 @@ O sistema é dividido em dois serviços principais:
 - **RabbitMQ**: Message Broker utilizado para publicar e consumir eventos assíncronos (ex: `user.created`, `user.updated`).
 - **Padrão Cache-Aside**: Ambas as APIs utilizam o Redis extensivamente para aliviar chamadas a banco e a serviços externos. A invalidação do cache inter-serviços é feita via RabbitMQ (ex: se a User API atualiza um usuário, a Order API recebe o evento e invalida seu cache local de forma transparente).
 - **ID Generation**: Todos os recursos utilizam UUIDv4 em vez de IDs incrementais para evitar ataques de enumeração e facilitar a geração distribuída.
-- **Docker**: Orquestração completa de todos os 13 containers via `docker-compose`.
+- **Docker**: Orquestração completa de todos os 14 containers via `docker-compose`.
 
 ---
 
