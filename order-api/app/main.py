@@ -3,6 +3,7 @@ from flask import Flask
 from flask_migrate import Migrate
 from app.infrastructure.config import Config
 from app.infrastructure.database import db
+from app.infrastructure.telemetry import init_telemetry
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s')
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ def create_app(config_class=Config) -> Flask:
     migrate.init_app(app, db)
     with app.app_context():
         db.create_all()
+        init_telemetry(app=app, engine=db.engine)
         from app.infrastructure.redis_cache import RedisCache
         from app.infrastructure.order_repository import MySQLOrderRepository
         from app.infrastructure.user_client import UserAPIClient
