@@ -8,6 +8,7 @@ from app.infrastructure.elasticsearch_adapter import ElasticsearchAdapter
 from app.infrastructure.encryption import EncryptionService
 from app.infrastructure.rabbitmq import RabbitMQConsumer, RabbitMQPublisher
 from app.infrastructure.redis_cache import RedisCache
+from app.infrastructure.telemetry import init_telemetry
 from app.presentation.routes import init_dependencies, router
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s')
@@ -45,6 +46,7 @@ async def lifespan(application: FastAPI):
 app = FastAPI(title='E-commerce Microservices - User API', description='Microsserviço de cadastro de usuários. Dados sensíveis (CPF, email, telefone) são criptografados com AES-256.', version='1.0.0', docs_url='/docs', redoc_url='/redoc', lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
 app.include_router(router)
+init_telemetry(app=app)
 
 @app.get('/health', tags=['Health'])
 async def health_check():
