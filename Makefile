@@ -1,9 +1,6 @@
 .PHONY: help up down build logs test test-user test-order migrate seed clean
 
 help:
-	@echo "============================================="
-	@echo " E-commerce Microservices"
-	@echo "============================================="
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 setup:
@@ -17,6 +14,15 @@ setup:
 	@echo "  User API:  http://localhost:8000/docs"
 	@echo "  Order API: http://localhost:8001/api/docs"
 	@echo "  RabbitMQ:  http://localhost:15672"
+	@echo "  Grafana:   http://localhost:3000"
+
+rebuild:
+	docker-compose down
+	docker-compose build --no-cache
+	docker-compose up -d
+	@echo "Waiting for services to be healthy..."
+	@timeout /t 15
+	@$(MAKE) migrate
 
 up:
 	docker-compose up -d
@@ -35,6 +41,9 @@ logs-user:
 
 logs-order:
 	docker-compose logs -f order-api
+
+logs-otel:
+	docker-compose logs -f otel-collector loki tempo grafana promtail
 
 restart:
 	docker-compose restart user-api order-api

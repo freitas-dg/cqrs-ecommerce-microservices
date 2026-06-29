@@ -1,5 +1,9 @@
 version: '3.8'
 
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_EXPORTER_OTLP_INSECURE: "true"
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -112,7 +116,7 @@ services:
     build:
       context: ./user-api
       dockerfile: Dockerfile
-    container_name: pg_user_api
+    container_name: ecommerce_user_api
     ports:
       - "${USER_API_PORT:-8000}:8000"
     volumes:
@@ -120,11 +124,13 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-pg_user}:${POSTGRES_PASSWORD:-user_pass_2026}@postgres:5432/${POSTGRES_DB:-user_db}
-      - DATABASE_URL_SYNC=postgresql+psycopg2://${POSTGRES_USER:-pg_user}:${POSTGRES_PASSWORD:-user_pass_2026}@postgres:5432/${POSTGRES_DB:-user_db}
-      - REDIS_URL=redis://redis_user:6379/0
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
+      <<: *otel-env
+      OTEL_SERVICE_NAME: user-api
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-pg_user}:${POSTGRES_PASSWORD:-user_pass_2026}@postgres:5432/${POSTGRES_DB:-user_db}
+      DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-pg_user}:${POSTGRES_PASSWORD:-user_pass_2026}@postgres:5432/${POSTGRES_DB:-user_db}
+      REDIS_URL: redis://redis_user:6379/0
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
     depends_on:
       postgres:
         condition: service_healthy
@@ -142,7 +148,7 @@ services:
     build:
       context: ./order-api
       dockerfile: Dockerfile
-    container_name: my_user_api
+    container_name: ecommerce_order_api
     ports:
       - "${ORDER_API_PORT:-8001}:8001"
     volumes:
@@ -150,11 +156,13 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-my_user}:${MYSQL_PASSWORD:-my_order_2026}@mysql:3306/${MYSQL_DATABASE:-order_db}
-      - REDIS_URL=redis://redis_order:6379/0
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
-      - USER_API_URL=http://user-api:8000
+      <<: *otel-env
+      OTEL_SERVICE_NAME: order-api
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-my_user}:${MYSQL_PASSWORD:-my_order_2026}@mysql:3306/${MYSQL_DATABASE:-order_db}
+      REDIS_URL: redis://redis_order:6379/0
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
+      USER_API_URL: http://user-api:8000
     depends_on:
       mysql:
         condition: service_healthy
@@ -170,6 +178,108 @@ services:
       - ecommerce_network
     restart: on-failure
 
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: ecommerce_loki
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce_network
+
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: ecommerce_promtail
+    volumes:
+      - ./observability/promtail/promtail-config.yaml:/etc/promtail/config.yaml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: ecommerce_tempo
+    volumes:
+      - ./observability/tempo/tempo-config.yaml:/etc/tempo/config.yaml
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+    command: -config.file=/etc/tempo/config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3200/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce_network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.92.0
+    container_name: ecommerce_otel_collector
+    volumes:
+      - ./observability/otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    command: --config /etc/otelcol-contrib/config.yaml
+    depends_on:
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+
+  prometheus:
+    image: prom/prometheus:v2.45.3
+    container_name: ecommerce_prometheus
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    networks:
+      - ecommerce_network
+
+  grafana:
+    image: grafana/grafana:10.3.1
+    container_name: ecommerce_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+
 volumes:
   postgres_data:
   mysql_data:
@@ -177,6 +287,10 @@ volumes:
   redis_order_data:
   es_data:
   rabbitmq_data:
+  loki_data:
+  tempo_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   ecommerce_network:
