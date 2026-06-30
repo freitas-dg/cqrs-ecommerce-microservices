@@ -131,6 +131,7 @@ services:
       REDIS_URL: redis://redis_user:6379/0
       ELASTICSEARCH_URL: http://elasticsearch:9200
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-ecommerce-jwt-secret-2026}
     depends_on:
       postgres:
         condition: service_healthy
@@ -163,6 +164,7 @@ services:
       ELASTICSEARCH_URL: http://elasticsearch:9200
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-ecommercemq}:${RABBITMQ_PASSWORD:-ecommerce_mq_2026}@rabbitmq:5672/
       USER_API_URL: http://user-api:8000
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-ecommerce-jwt-secret-2026}
     depends_on:
       mysql:
         condition: service_healthy
@@ -255,6 +257,25 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
+    networks:
+      - ecommerce_network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.6
+    container_name: ecommerce_keycloak
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    command: start-dev --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e \"GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n\" >&3;grep \"200 OK\" <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - ecommerce_network
 

@@ -1,0 +1,24 @@
+{
+  "id": "ecommerce",
+  "realm": "ecommerce",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "ecommerce-frontend",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"]
+    },
+    {
+      "clientId": "ecommerce-m2m",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "ecommerce-m2m-secret",
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "directAccessGrantsEnabled": false
+    }
+  ]
+}
