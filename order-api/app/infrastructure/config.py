@@ -13,3 +13,6 @@ class Config:
     RABBITMQ_URL = os.environ.get('RABBITMQ_URL', 'amqp://ecommercemq:ecommerce_mq_2026@localhost:5672/')
     USER_API_URL = os.environ.get('USER_API_URL', 'http://localhost:8000')
     USER_API_TIMEOUT = int(os.environ.get('USER_API_TIMEOUT', '5'))
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'change-this-secret-in-production')
+    KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL', 'http://keycloak:8080')
+    KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM', 'ecommerce')

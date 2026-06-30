@@ -44,11 +44,25 @@ class UserAPIClient(UserServiceInterface):
             logger.warning('Cannot verify user %s existence: %s', user_id, e)
             return True
 
+    def _generate_internal_token(self) -> str:
+        from app.infrastructure.config import Config
+        url = f"{Config.KEYCLOAK_URL}/realms/{Config.KEYCLOAK_REALM}/protocol/openid-connect/token"
+        data = {
+            "client_id": "ecommerce-m2m",
+            "client_secret": "ecommerce-m2m-secret",
+            "grant_type": "client_credentials"
+        }
+        response = requests.post(url, data=data, timeout=5)
+        response.raise_for_status()
+        return response.json()["access_token"]
+
     @user_api_breaker
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, min=0.5, max=5), retry=retry_if_exception_type(requests.ConnectionError), reraise=True)
     def _fetch_user_from_api(self, user_id: str) -> Optional[dict]:
         url = f'{self._base_url}/api/v1/users/{user_id}'
-        response = requests.get(url, timeout=self._timeout)
+        token = self._generate_internal_token()
+        headers = {'Authorization': f'Bearer {token}'}
+        response = requests.get(url, headers=headers, timeout=self._timeout)
         if response.status_code == 404:
             return None
         response.raise_for_status()
