@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     elasticsearch_user_index: str = 'users'
     rabbitmq_url: str = 'amqp://ecommercemq:ecommerce_mq_2026@localhost:5672/'
     encryption_key: str = 'ZmVybmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seQ=='
+    jwt_secret_key: str = 'change-this-secret-in-production'
+    jwt_access_token_expires: int = 900
+    jwt_refresh_token_expires: int = 604800
+    keycloak_url: str = 'http://keycloak:8080'
+    keycloak_admin_user: str = 'admin'
+    keycloak_admin_password: str = 'admin'
+    keycloak_realm: str = 'ecommerce'
+    keycloak_client_id: str = 'ecommerce-frontend'
 
     class Config:
         env_file = '.env'

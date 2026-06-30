@@ -8,6 +8,7 @@ class UserCreateRequest(BaseModel):
     cpf: str = Field(..., min_length=11, max_length=14, examples=['52998224725'])
     email: EmailStr = Field(..., examples=['douglas@example.com'])
     phone_number: str = Field(..., min_length=8, max_length=20, examples=['+5511999998888'])
+    password: str = Field(..., min_length=8, max_length=72, examples=['MySecurePass123'])
 
 class UserUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -27,3 +28,16 @@ class UserResponse(BaseModel):
 class MessageResponse(BaseModel):
     message: str
     detail: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: EmailStr = Field(..., examples=['douglas@example.com'])
+    password: str = Field(..., min_length=1, max_length=72, examples=['MySecurePass123'])
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: Optional[str] = None
+    token_type: str = 'bearer'
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+

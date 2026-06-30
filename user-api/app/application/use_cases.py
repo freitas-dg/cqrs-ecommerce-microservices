@@ -4,6 +4,7 @@ import logging
 from typing import List, Optional
 from app.domain.entities import User
 from app.domain.repositories import CacheInterface, EventPublisherInterface, SearchInterface, UserRepositoryInterface
+from app.infrastructure.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 CACHE_PREFIX = 'user'
@@ -12,18 +13,22 @@ CACHE_TTL = 300
 
 class UserUseCases:
 
-    def __init__(self, repository: UserRepositoryInterface, cache: CacheInterface, search: SearchInterface, event_publisher: EventPublisherInterface) -> None:
+    def __init__(self, repository: UserRepositoryInterface, cache: CacheInterface, search: SearchInterface, event_publisher: EventPublisherInterface, auth_service: AuthService) -> None:
         self._repo = repository
         self._cache = cache
         self._search = search
         self._events = event_publisher
+        self._auth = auth_service
 
-    async def create_user(self, name: str, cpf: str, email: str, phone_number: str) -> User:
+    async def create_user(self, name: str, cpf: str, email: str, phone_number: str, password: str) -> User:
         existing = await self._repo.get_by_cpf(cpf)
         if existing:
             raise ValueError(f'User with CPF {cpf} already exists.')
 
-        user = User(name=name, cpf=cpf, email=email, phone_number=phone_number)
+        kc_id = self._auth.create_user_in_keycloak(email, password, name)
+
+        user = User(id=kc_id, name=name, cpf=cpf, email=email, phone_number=phone_number)
+        
         created_user = await self._repo.create(user)
         await self._cache.delete_pattern(f'{CACHE_LIST_KEY}:*')
         await self._events.publish('user.created', self._user_to_dict(created_user))

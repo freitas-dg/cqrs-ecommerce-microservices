@@ -26,8 +26,14 @@ def mock_publisher():
     return AsyncMock()
 
 @pytest.fixture
-def use_cases(mock_repo, mock_cache, mock_search, mock_publisher):
-    return UserUseCases(repository=mock_repo, cache=mock_cache, search=mock_search, event_publisher=mock_publisher)
+def mock_auth_service():
+    auth = MagicMock()
+    auth.create_user_in_keycloak.return_value = '123e4567-e89b-12d3-a456-426614174000'
+    return auth
+
+@pytest.fixture
+def use_cases(mock_repo, mock_cache, mock_search, mock_publisher, mock_auth_service):
+    return UserUseCases(repository=mock_repo, cache=mock_cache, search=mock_search, event_publisher=mock_publisher, auth_service=mock_auth_service)
 
 @pytest.fixture
 def sample_user():
@@ -39,7 +45,7 @@ class TestCreateUser:
     async def test_create_user_success(self, use_cases, mock_repo, mock_publisher, sample_user):
         mock_repo.get_by_cpf.return_value = None
         mock_repo.create.return_value = sample_user
-        result = await use_cases.create_user(name='Douglas Freitas', cpf='52998224725', email='douglas@example.com', phone_number='+5511999998888')
+        result = await use_cases.create_user(name='Douglas Freitas', cpf='52998224725', email='douglas@example.com', phone_number='+5511999998888', password='MySecurePass123')
         assert result.id == '123e4567-e89b-12d3-a456-426614174000'
         assert result.name == 'Douglas Freitas'
         mock_repo.create.assert_called_once()
@@ -50,7 +56,7 @@ class TestCreateUser:
     async def test_create_user_duplicate_cpf(self, use_cases, mock_repo, sample_user):
         mock_repo.get_by_cpf.return_value = sample_user
         with pytest.raises(ValueError, match='already exists'):
-            await use_cases.create_user(name='Another User', cpf='52998224725', email='another@example.com', phone_number='+5511888887777')
+            await use_cases.create_user(name='Another User', cpf='52998224725', email='another@example.com', phone_number='+5511888887777', password='MySecurePass123')
 
 class TestGetUser:
 

@@ -37,6 +37,14 @@ class PostgresUserRepository(UserRepositoryInterface):
                 return self._to_entity(model)
         return None
 
+    async def get_by_email(self, email: str) -> Optional[User]:
+        result = await self._session.execute(select(UserModel))
+        models = result.scalars().all()
+        for model in models:
+            if self._enc.decrypt(model.email) == email:
+                return self._to_entity(model)
+        return None
+
     async def list_all(self, skip: int=0, limit: int=100) -> List[User]:
         result = await self._session.execute(select(UserModel).order_by(UserModel.id).offset(skip).limit(limit))
         models = result.scalars().all()
